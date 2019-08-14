@@ -1,0 +1,6 @@
+{
+    "tunnel_host": "0.0.0.0",
+    "tunnel_port": 32824,
+    "max_client": 200,
+    "max_agents": 1000
+}

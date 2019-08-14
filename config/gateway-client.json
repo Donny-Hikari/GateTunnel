@@ -1,0 +1,24 @@
+{
+    "spy_target": {
+        "ip": "10.0.0.192/27",
+        "protocols": [6, 17]
+    },
+    "ts_tcp_server": {
+        "host": "0.0.0.0",
+        "port": 32822,
+        "max_client": 1000
+    },
+    "ts_udp_server": {
+        "host": "0.0.0.0",
+        "port": 32823,
+        "max_tunnel": 5
+    },
+    "udp_tunnel_server": {
+        "host": "127.0.0.1",
+        "port": 32824
+    },
+    "socks_server": {
+        "host": "127.0.0.1",
+        "port": 32818
+    }
+}
