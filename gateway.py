@@ -5,6 +5,7 @@ import struct
 from ipaddress import ip_address, ip_network
 import signal
 import random
+import time
 
 import logging
 from eventloop import EventHandler, EventLoop, AsyncHandler
@@ -40,7 +41,7 @@ DefaultConfig = {
     },
     'select_time_out': 600 / 1000,
     'alive_time_limit': {
-        'client_tcp': 300,
+        'client_tcp': 60,
     }, # seconds
 }
 
@@ -90,12 +91,12 @@ class SocksConn(AsyncHandler):
 
         if not self.has_destination():
             self._pendingdst_pool.discard(self)
-        
+
         try:
-            self._client_conn.close()
+            self._client_conn.close_gracefully()
         except Exception as err:
             logging.debug(err)
-        
+
         try:
             self._conn.close()
         except Exception as err:
@@ -219,7 +220,7 @@ class ClientTCPConn(AsyncHandler, AliveObject):
         self._loop.unregister(self._conn, EventLoop.ALL_EVENT)
 
         try:
-            self._socks_conn.close()
+            self._socks_conn.close_gracefully()
         except Exception as err:
             logging.debug(err)
 
@@ -312,6 +313,9 @@ class ClientUDP2TCP:
             self, virtual_addr[0], virtual_addr[1],
             self._socks_host, self._socks_port)
 
+    def close_gracefully(self):
+        self.close()
+
     def close(self):
         if not self._alive:
             return
@@ -360,6 +364,7 @@ class TSUDPServer(EventHandler):
         self._socks_port = socks_port
         self._max_tunnel = max_tunnel
         self._tunnel_conn = [self._establish_tunnel() for t in range(self._max_tunnel)]
+        self._wait_for_dst = set()
 
         self._server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
@@ -372,14 +377,7 @@ class TSUDPServer(EventHandler):
 
         self._loop.register(self._server, self, EventLoop.READ_EVENT)
 
-    def _establish_tunnel(self):
-        addr = (self._host, self._port)
-        self._dst_pool[addr] = {
-            'destination': (self._tunnel_host, self._tunnel_port),
-        }
-        return ClientUDP2TCP(self._loop, self._dst_pool, self._pendingdst_pool,
-            self, (self._host, self._port),
-            self._socks_host, self._socks_port)
+        self._pendingdst_pool.add(self)
 
     def close(self):
         logging.debug('Server shutting down.')
@@ -392,22 +390,47 @@ class TSUDPServer(EventHandler):
 
         logging.info('Server shutdown.')
 
+    def _establish_tunnel(self):
+        addr = (self._host, self._port)
+        self._dst_pool[addr] = {
+            'destination': (self._tunnel_host, self._tunnel_port),
+        }
+        return ClientUDP2TCP(self._loop, self._dst_pool, self._pendingdst_pool,
+            self, (self._host, self._port),
+            self._socks_host, self._socks_port)
+
+    def _sendto_tunnel(self, data, addr):
+        dest = self._dst_pool[addr]['destination']
+        tunnel_id = random.randint(0, self._max_tunnel-1)
+        try:
+            self._tunnel_conn[tunnel_id].forward(addr, data, dest)
+        except:
+            logging.log(LOG_VERBOSE, "Tunnel %d is down, restarting.", tunnel_id)
+            self._tunnel_conn[tunnel_id].close()
+            self._tunnel_conn[tunnel_id] = self._establish_tunnel()
+            self._tunnel_conn[tunnel_id].forward(addr, data, dest)
+
+    def check_destination(self):
+        DropTimeLimit = 1 # seconds
+        
+        cur_time = time.time()
+        for data, addr, t in set(self._wait_for_dst):
+            if addr in self._dst_pool:
+                self._wait_for_dst.discard((data, addr, t))
+                self._sendto_tunnel(data, addr)
+            elif cur_time - t > DropTimeLimit:
+                self._wait_for_dst.discard((data, addr, t))
+                logging.log(LOG_VERBOSE, "Dropped udp package from %s:%d", addr[0], addr[1])
+
     def forward(self, src, data, dst):
         self._server.sendto(data, dst)
 
     def onRead(self, e):
         data, addr = self._server.recvfrom(65565)
         if addr in self._dst_pool:
-            dest = self._dst_pool[addr]['destination']
-            tunnel_id = random.randint(0, self._max_tunnel-1)
-            try:
-                self._tunnel_conn[tunnel_id].forward(addr, data, dest)
-            except:
-                logging.log(LOG_VERBOSE, "Tunnel %d is down, restarting.", tunnel_id)
-                self._tunnel_conn[tunnel_id].close()
-                self._tunnel_conn[tunnel_id] = self._establish_tunnel()
+            self._sendto_tunnel(data, addr)
         else:
-            logging.log(LOG_VERBOSE, "Dropped udp package from %s:%d", addr[0], addr[1])
+            self._wait_for_dst.add((data, addr, time.time()))
 
 class SpyServer(EventHandler):
     def __init__(self, loop, dst_pool, target):
@@ -548,7 +571,6 @@ def main():
         for sock in _list:
             print(sock)
             try:
-                sock.shutdown(socket.SHUT_RDWR)
                 sock.close()
             except Exception as err:
                 logging.debug(err)

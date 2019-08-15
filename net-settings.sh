@@ -10,30 +10,27 @@ print_usage()
     echo "  $(basename $(readlink -f $0)) [setup(s)|clear(c)|help(h)]"
 }
 
-iptables_add_not_exist()
+iptables_noerr()
 {
-    sudo iptables -C $@ 1>/dev/null 2>&1
-    if [[ $? != 0 ]]; then
-        sudo iptables -A $@
-    fi
+    sudo iptables $@ 2>/dev/null
 }
 
 setup()
 {
     sudo sysctl net.ipv4.ip_forward=1
 
-    iptables_add_not_exist PREROUTING -t nat -p udp --src 10.0.0.192/27 -j DNAT --to $udp_server
-    iptables_add_not_exist PREROUTING -t nat -p tcp --src 10.0.0.192/27 -j DNAT --to $tcp_server
-    iptables_add_not_exist POSTROUTING -t nat -j MASQUERADE
+    iptables_noerr -t nat -A PREROUTING -p udp --src 10.0.0.192/27 -j DNAT --to $udp_server
+    iptables_noerr -t nat -A PREROUTING -p tcp --src 10.0.0.192/27 -j DNAT --to $tcp_server
+    iptables_noerr -t nat -A POSTROUTING -j MASQUERADE
 }
 
 clear()
 {
     sudo sysctl net.ipv4.ip_forward=0
 
-    sudo iptables -D PREROUTING -t nat -p udp --src 10.0.0.192/27 -j DNAT --to $udp_server
-    sudo iptables -D PREROUTING -t nat -p tcp --src 10.0.0.192/27 -j DNAT --to $tcp_server
-    sudo iptables -D POSTROUTING -t nat -j MASQUERADE
+    iptables_noerr -t nat -D PREROUTING -p udp --src 10.0.0.192/27 -j DNAT --to $udp_server
+    iptables_noerr -t nat -D PREROUTING -p tcp --src 10.0.0.192/27 -j DNAT --to $tcp_server
+    iptables_noerr -t nat -D POSTROUTING -j MASQUERADE
 }
 
 case $1 in

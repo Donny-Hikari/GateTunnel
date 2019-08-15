@@ -15,11 +15,10 @@ LogLevel = logging.INFO
 DefaultConfig = {
     'tunnel_host': "0.0.0.0",
     'tunnel_port': 32824,
-    'max_client': 200,
-    'max_agents': 1000,
+    'max_client': 1000,
     'select_time_out': 600 / 1000,
     'alive_time_limit': {
-        'tunnel': 900,
+        'tunnel': 300,
         'udp_agent': 20,
     }, # seconds
 }
@@ -83,7 +82,7 @@ class UDPAgent(AsyncUDPHandler, AliveObject):
         self._server.forward(addr, data, self._host)
 
 class ClientTCPConn(AsyncHandler, AliveObject):
-    def __init__(self, loop, conn, addr, max_agents, alive_conf):
+    def __init__(self, loop, conn, addr, alive_conf):
         self._alive_conf = alive_conf
         AliveObject.__init__(self, self._alive_conf['pool'], self._alive_conf['snooze_limit']['tunnel'])
         
@@ -93,7 +92,6 @@ class ClientTCPConn(AsyncHandler, AliveObject):
         self._id = self._conn.fileno()
         self._data_buffer = b''
         
-        self._max_agents = max_agents
         self._agents = []
         self._dispatch_table = {}
 
@@ -116,7 +114,7 @@ class ClientTCPConn(AsyncHandler, AliveObject):
 
         for agent in list(self._agents):
             try:
-                agent.close()
+                agent.close_gracefully()
             except Exception as err:
                 logging.debug(err)
 
@@ -158,14 +156,13 @@ class ClientTCPConn(AsyncHandler, AliveObject):
         self.handle_read(b'')
 
 class UDPTunnelServer(EventHandler):
-    def __init__(self, loop, host, port, max_client, max_agents, alive_conf):
+    def __init__(self, loop, host, port, max_client, alive_conf):
         self._alive_conf = alive_conf
 
         self._loop = loop
         self._host = host
         self._port = port
         self._max_client = max_client
-        self._max_agents = max_agents
 
         self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -193,7 +190,7 @@ class UDPTunnelServer(EventHandler):
     def onRead(self, e):
         conn, addr = self._server.accept()
         conn.setblocking(False)
-        ClientTCPConn(self._loop, conn, addr, self._max_agents, self._alive_conf)
+        ClientTCPConn(self._loop, conn, addr, self._alive_conf)
 
 def main():
     global LogLevel, ConfigFile, DefaultConfig
@@ -229,7 +226,7 @@ def main():
     alive_pool = set()
 
     server = UDPTunnelServer(loop, config['tunnel_host'], config['tunnel_port'],
-        max_client=config['max_client'], max_agents=config['max_agents'],
+        max_client=config['max_client'],
         alive_conf={ 'pool': alive_pool, 'snooze_limit': config['alive_time_limit'] })
 
     def int_handler(signum, _):
@@ -259,7 +256,6 @@ def main():
         for sock in _list:
             print(sock)
             try:
-                sock.shutdown(socket.SHUT_RDWR)
                 sock.close()
             except Exception as err:
                 logging.debug(err)

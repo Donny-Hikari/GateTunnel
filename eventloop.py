@@ -1,6 +1,7 @@
 
 import select
 import signal
+import socket
 import errno
 import logging
 import traceback
@@ -112,8 +113,19 @@ class AsyncHandler(EventHandler):
         self._sock = sock
         self._data_to_write = b''
         self._read_buffer_size = AsyncHandler.BUFFER_SIZE
+        self._closing = False
 
         self._loop.register(self._sock, self, EventLoop.READ_EVENT)
+
+    def close_gracefully(self):
+        if len(self._data_to_write) == 0:
+            self.close()
+        else:
+            self._closing = True
+            self._sock.shutdown(socket.SHUT_RD)
+
+    def close(self):
+        pass
 
     def handle_read(self, data):
         raise NotImplementedError
@@ -163,6 +175,9 @@ class AsyncHandler(EventHandler):
 
         self.handle_write(bytes_sent)
 
+        if self._closing and len(self._data_to_write) == 0:
+            self.close()
+
 class AsyncUDPHandler(EventHandler):
     BUFFER_SIZE = 14336
 
@@ -171,8 +186,19 @@ class AsyncUDPHandler(EventHandler):
         self._sock = sock
         self._data_to_write = []
         self._read_buffer_size = AsyncUDPHandler.BUFFER_SIZE
+        self._closing = False
 
         self._loop.register(self._sock, self, EventLoop.READ_EVENT)
+
+    def close_gracefully(self):
+        if len(self._data_to_write) == 0:
+            self.close()
+        else:
+            self._closing = True
+            self._sock.shutdown(socket.SHUT_RD)
+
+    def close(self):
+        pass
 
     def handle_read(self, data, addr):
         raise NotImplementedError
@@ -222,3 +248,6 @@ class AsyncUDPHandler(EventHandler):
             return
 
         self.handle_write(addr, bytes_sent)
+
+        if self._closing and len(self._data_to_write) == 0:
+            self.close()
