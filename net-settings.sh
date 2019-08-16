@@ -26,7 +26,10 @@ setup()
         fi
     done
 
+    echo "[net-settings] sysctl"
     sudo sysctl net.ipv4.ip_forward=1
+
+    echo 
 
     if [[ $bypass_lan == 1 ]]; then
         iptables_noerr -t nat -A PREROUTING --src $target --dst $lan_network -j ACCEPT
@@ -38,7 +41,7 @@ setup()
     iptables_noerr -t nat -A PREROUTING -p tcp --src $target -j DNAT --to $tcp_server
     iptables_noerr -t nat -A POSTROUTING -j MASQUERADE
 
-    echo "+ Current iptable on table \"nat\":"
+    echo "[net-settings] iptable on table \"nat\":"
     sudo iptables -t nat -L
 }
 
@@ -52,7 +55,7 @@ clear()
     iptables_noerr -t nat -D PREROUTING -p tcp --src $target -j DNAT --to $tcp_server
     iptables_noerr -t nat -D POSTROUTING -j MASQUERADE
 
-    echo "+ Current iptable on table \"nat\":"
+    echo "[net-settings] iptable on table \"nat\":"
     sudo iptables -t nat -L
 }
 

@@ -240,11 +240,11 @@ class ClientTCPConn(AsyncHandler, AliveObject):
         self.close()
 
     def handle_read(self, req):
-        AliveObject.poke(self)
-
         if len(req) == 0:
             self.close()
             return
+
+        AliveObject.poke(self)
 
         try:
             self._socks_conn.send(req)

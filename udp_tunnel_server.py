@@ -132,6 +132,13 @@ class ClientTCPConn(AsyncHandler, AliveObject):
         self.close()
 
     def handle_read(self, data):
+        if data != None:
+            if len(data) <= 0:
+                self.close()
+                return
+        else:
+            data = b''
+
         AliveObject.poke(self)
 
         header_len = 14
@@ -153,7 +160,7 @@ class ClientTCPConn(AsyncHandler, AliveObject):
         agent.sendto(data[header_len:], (dst_ip, dst_port))
 
         self._data_buffer = data[header_len+l:]
-        self.handle_read(b'')
+        self.handle_read(None)
 
 class UDPTunnelServer(EventHandler):
     def __init__(self, loop, host, port, max_client, alive_conf):
