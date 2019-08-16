@@ -7,9 +7,9 @@ This program is for SCIENTIFIC RESEARCH purpose only. Please DO NOT use it for c
 
 ## Why
 
-The reason why we need a gateway proxy is that, neither http proxy nor VPN provides 100% proxy for all data traffic. For http proxy, the use is limited. On Android or PlayStation, the system or applications may ignore the http proxy settings. For VPN, you need system support or to install an application on the target system, which is sometimes difficult to achieve without root.
+The reason why we need a gateway proxy is that, neither http proxy nor VPN provides 100% proxy for all data traffic. For http proxy, the use is limited. The system or applications may ignore the http proxy settings. For VPN, you need system support or to install an application on the target system, which is sometimes difficult to achieve without root.
 
-With GateTunnel, you can connect to proxy from any device so long as it support static IP address.
+With GateTunnel, you can connect to proxy from any device so long as it supports static IP address.
 
 ## Requirements
 
@@ -19,13 +19,13 @@ A SOCKS server is requried for this program to work, though. See section [SOCKS 
 
 ## Run
 
-First, setup your network using "net-setting.sh":
+First, setup your network using "net-settings.sh":
 
 ```shell
-$ bash net-setting.sh
+$ bash net-settings.sh setup
 ```
 
-This setup requires administrator permission.
+This setup requires administrator permission. Remember to check and configure the variables `lan_network`, `target`, `tcp_server` and `udp_server` in the "net-settings.sh" file before you run this command. You can use "--bypass-lan" to allow LAN access and use "--bypass-dns" to allow DNS query to go through your LAN (rather than the server).
 
 Then, start a SOCKS server, and then start the server:
 
@@ -33,7 +33,7 @@ Then, start a SOCKS server, and then start the server:
 $ python3 udp_tunnel_server.py
 ```
 
-You can use "-c" to specify the configuration file location, and use "--verbose" or "--log-level $LOG_LEVEL" to specify the log level. "$LOG_LEVEL" should be an integer.
+You can use "-c" to specify the configuration file location, and use "--verbose" or "--log-level $LOG_LEVEL" to specify the log level. `LOG_LEVEL` should be an integer.
 
 Finally, start the client:
 
